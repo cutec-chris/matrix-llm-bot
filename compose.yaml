@@ -1,0 +1,19 @@
+services:
+  llm:
+    image: docker.io/ollama/ollama
+    container_name: llm
+    volumes:
+      - ./llm-data:/root/.ollama
+    ports:
+      - 11434
+  #app:
+  #  build: 
+  #    context: source
+  #  container_name: matrix_llm_bot
+  #  restart: always
+  #  env_file:
+  #    - .env
+  #  volumes:
+  #    - ./source:/app
+  #  dns:
+  #    - 192.168.177.105
