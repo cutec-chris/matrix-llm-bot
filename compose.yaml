@@ -1,0 +1,31 @@
+services:
+  ollama:
+    image: docker.io/ollama/ollama
+    container_name: llm
+    volumes:
+      - ./llm-data:/root/.ollama
+    ports: ["11434:11434"]
+  
+  ollama-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: ollama-webui
+    ports: ["10200:8080"]
+    volumes:
+      - ./webui:/app/backend/data
+    depends_on:
+      - ollama
+    restart: always
+    environment:
+      - 'OLLAMA_API_BASE_URL=http://ollama:11434/api'
+    restart: unless-stopped
+  #app:
+  #  build: 
+  #    context: source
+  #  container_name: matrix_llm_bot
+  #  restart: always
+  #  env_file:
+  #    - .env
+  #  volumes:
+  #    - ./source:/app
+  #  dns:
+  #    - 192.168.177.105
