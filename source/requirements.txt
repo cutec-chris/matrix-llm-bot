@@ -1,1 +1,4 @@
 asyncio
+simplematrixbotlib
+pyyaml
+langchain
