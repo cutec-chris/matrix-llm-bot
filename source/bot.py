@@ -1,5 +1,5 @@
 from init import *
-import pathlib,importlib.util,logging,os,datetime,sys,time,aiofiles,os
+import pathlib,importlib.util,logging,os,datetime,sys,time,aiofiles,os,aiohttp
 import os,traceback
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
@@ -29,7 +29,7 @@ async def tell(room, message):
             servers.append(server)
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
-        if match.command("change-setting"):
+        elif match.command("change-setting"):
             set_target = None
             for server in servers:
                 if server.room == room.room_id:
@@ -51,9 +51,27 @@ async def tell(room, message):
                 await save_servers()
             await bot.api.send_text_message(room.room_id, 'exitting...')
             os._exit(0)
+        elif match.is_not_from_this_bot(): #regualr message to bot
+            for server in servers:
+                if server.room == room.room_id:
+                    async with aiohttp.ClientSession() as session:
+                        headers = {"Content-Type": "application/json"}
+                        if hasattr(server,'apikey'):
+                            headers["Authorization"] = f"Bearer {server.apikey}"
+                        ajson = {
+                            "model": server.model,
+                            "messages": [{"role": "system", "content": server.system},
+                                         {"role": "user", "content": ' '.join(match.args())}],
+                        }
+                        if hasattr(server,'temperature'):
+                            ajson['temperature'] = server.temperature
+                        res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
+                        async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
+                            response_json = await resp.json()
+                            await bot.api.send_text_message(room.room_id,response_json["choices"][0]['message']["content"])
     except BaseException as e:
         logger.error(str(e), exc_info=True)
-        await bot.api.send_text_message(room,str(e))
+        await bot.api.send_text_message(room.room_id,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
 datasources = []
 strategies = []
