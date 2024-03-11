@@ -1,10 +1,10 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests,os
-import managepaper,processpaper,os,traceback
+import pathlib,importlib.util,logging,os,datetime,sys,time,aiofiles,os
+import os,traceback
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
-class Portfolio(Config):
+class BotData(Config):
     def __init__(self, room, **kwargs) -> None:
         super().__init__(room, **kwargs)
 @bot.listener.on_message_event
@@ -20,21 +20,24 @@ async def tell(room, message):
         tuser = None
         if match.is_not_from_this_bot() and room.member_count==2:
             tuser = message.sender
+        if match.command("add-model"):
+            server = BotData(room=room.room_id,
+                url=match.args()[2],
+                model=match.args()[1],
+                system='You are an helpful Assistent!'
+            )
+            servers.append(server)
+            await save_servers()
+            await bot.api.send_text_message(room.room_id, 'ok')
         if match.command("change-setting"):
             set_target = None
             for server in servers:
-                if server.room == room.room_id and server.name == match.args()[1]:
-                    setattr(server,match.args()[2],match.args()[3])
+                if server.room == room.room_id:
                     set_target = server
-                    break
-                for apaper in server.papers:
-                    if apaper['isin'] == match.args()[1]:
-                        apaper[match.args()[2]] = match.args()[3]
-                        set_target = apaper
-                        break
-                if set_target:
-                    if tuser:
-                        server.client = tuser
+            if set_target:
+                server = set_target
+                setattr(server,match.args()[1],' '.join(match.args()[2:]))
+                set_target = server
                 await save_servers()
                 await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -63,15 +66,13 @@ try:
     with open('data.json', 'r') as f:
         nservers = json.load(f)
         for server in nservers:
-          servers.append(Portfolio(server))
+          servers.append(BotData(server))
 except BaseException as e:
     logger.error('Failed to read data.json:'+str(e))
 @bot.listener.on_startup
 async def startup(room):
     global loop,servers,news_task,dates_task
     loop = asyncio.get_running_loop()
-    await database.Init(loop)
-    loop.create_task(restart_task())
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""
@@ -106,19 +107,4 @@ async def main():
     except BaseException as e:
         logger.error('bot main fails:'+str(e),stack_info=True)
         os._exit(1)
-processpaper.bot = bot
-processpaper.servers = servers
-processpaper.datasources = datasources
-processpaper.strategies = strategies
-processpaper.save_servers = save_servers
-managepaper.bot = bot
-managepaper.servers = servers
-managepaper.datasources = datasources
-managepaper.strategies = strategies
-managepaper.save_servers = save_servers
-async def restart_task():
-    shutdown_time = datetime.datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
-    time_until_shutdown = (shutdown_time - datetime.datetime.now()).total_seconds()
-    await asyncio.sleep(time_until_shutdown)
-    os._exit(1)
 asyncio.run(main())

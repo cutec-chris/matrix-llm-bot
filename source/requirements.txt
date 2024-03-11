@@ -1,4 +1,3 @@
 asyncio
 simplematrixbotlib
 pyyaml
-langchain
