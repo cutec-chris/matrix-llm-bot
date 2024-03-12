@@ -56,16 +56,19 @@ async def tell(room, message):
                 if server.room == room.room_id:
                     if hasattr(server,'wol'):
                         async def check_status():
-                            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
-                                async with session.post(server.url) as resp:
-                                    r = await resp.text()
-                                    return True
+                            try:
+                                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
+                                    async with session.post(server.url) as resp:
+                                        r = await resp.text()
+                                        return True
+                            except: pass
                             return False
                         purl = urllib.parse.urlparse(server.url)
-                        net = ipaddress.IPv4Network(purl.host + '/' + '255.255.255.0', False)
-                        wol.WakeOnLan(server.wol,net.broadcast_address)
-                        for i in 10:
+                        net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
+                        wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
+                        for i in range(30):
                             if await check_status():
+                                logging.info('client waked up after '+str(i)+' seconds')
                                 break
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         headers = {"Content-Type": "application/json"}
