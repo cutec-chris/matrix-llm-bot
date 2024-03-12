@@ -55,12 +55,18 @@ async def tell(room, message):
             for server in servers:
                 if server.room == room.room_id:
                     if hasattr(server,'wol'):
-                        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=0.3)) as session:
-                            async with session.post(server.url) as resp:
-                                r = await resp.text
+                        async def check_status():
+                            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
+                                async with session.post(server.url) as resp:
+                                    r = await resp.text()
+                                    return True
+                            return False
                         purl = urllib.parse.urlparse(server.url)
                         net = ipaddress.IPv4Network(purl.host + '/' + '255.255.255.0', False)
                         wol.WakeOnLan(server.wol,net.broadcast_address)
+                        for i in 10:
+                            if await check_status():
+                                break
                     async with aiohttp.ClientSession() as session:
                         headers = {"Content-Type": "application/json"}
                         if hasattr(server,'apikey'):
