@@ -67,7 +67,7 @@ async def tell(room, message):
                         for i in 10:
                             if await check_status():
                                 break
-                    async with aiohttp.ClientSession() as session:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         headers = {"Content-Type": "application/json"}
                         if hasattr(server,'apikey'):
                             headers["Authorization"] = f"Bearer {server.apikey}"
