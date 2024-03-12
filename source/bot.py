@@ -54,32 +54,41 @@ async def tell(room, message):
         elif match.is_not_from_this_bot(): #regualr message to bot
             for server in servers:
                 if server.room == room.room_id:
+                    #get sure system is up
                     if hasattr(server,'wol'):
-                        async def check_status():
-                            try:
-                                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
-                                    async with session.post(server.url) as resp:
-                                        r = await resp.text()
-                                        return True
-                            except: pass
-                            return False
-                        purl = urllib.parse.urlparse(server.url)
-                        net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
-                        wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
-                        for i in range(60):
-                            if await check_status():
-                                logging.info('client waked up after '+str(i)+' seconds')
-                                break
+                        Status_ok = False
+                        for a in range(3):
+                            async def check_status():
+                                try:
+                                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
+                                        async with session.post(server.url) as resp:
+                                            r = await resp.text()
+                                            return True
+                                except: pass
+                                return False
+                            purl = urllib.parse.urlparse(server.url)
+                            net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
+                            wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
+                            for i in range(60):
+                                if await check_status() == True:
+                                    logging.info('client waked up after '+str(i)+' seconds')
+                                    Status_ok = True
+                                    break
+                            if Status_ok: break
                     #get sure model is loaded
+                    await bot.api.async_client.room_typing(room.room_id,False,0)
                     headers = {"Content-Type": "application/json"}
                     if hasattr(server,'apikey'):
                         headers["Authorization"] = f"Bearer {server.apikey}"
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
                             "model": server.model,
+                            "messages": [{"role": "system", "content": ""},
+                                         {"role": "user", "content": ""}],
                         }
                         async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                             response_json = await resp.json()
+                    #ask model
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
                             "model": server.model,
