@@ -1,6 +1,6 @@
 from init import *
-import pathlib,importlib.util,logging,os,datetime,sys,time,aiofiles,os,aiohttp
-import os,traceback
+import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress
+import wol
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
@@ -54,6 +54,13 @@ async def tell(room, message):
         elif match.is_not_from_this_bot(): #regualr message to bot
             for server in servers:
                 if server.room == room.room_id:
+                    if hasattr(server,'wol'):
+                        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=0.3)) as session:
+                            async with session.post(server.url) as resp:
+                                r = await resp.text
+                        purl = urllib.parse.urlparse(server.url)
+                        net = ipaddress.IPv4Network(purl.host + '/' + '255.255.255.0', False)
+                        wol.WakeOnLan(server.wol,net.broadcast_address)
                     async with aiohttp.ClientSession() as session:
                         headers = {"Content-Type": "application/json"}
                         if hasattr(server,'apikey'):
