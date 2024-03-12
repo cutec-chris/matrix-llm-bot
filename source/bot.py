@@ -66,14 +66,21 @@ async def tell(room, message):
                         purl = urllib.parse.urlparse(server.url)
                         net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
                         wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
-                        for i in range(30):
+                        for i in range(60):
                             if await check_status():
                                 logging.info('client waked up after '+str(i)+' seconds')
                                 break
+                    #get sure model is loaded
+                    headers = {"Content-Type": "application/json"}
+                    if hasattr(server,'apikey'):
+                        headers["Authorization"] = f"Bearer {server.apikey}"
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
-                        headers = {"Content-Type": "application/json"}
-                        if hasattr(server,'apikey'):
-                            headers["Authorization"] = f"Bearer {server.apikey}"
+                        ajson = {
+                            "model": server.model,
+                        }
+                        async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
+                            response_json = await resp.json()
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
                             "model": server.model,
                             "messages": [{"role": "system", "content": server.system},
