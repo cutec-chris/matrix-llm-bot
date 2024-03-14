@@ -54,18 +54,19 @@ async def tell(room, message):
         elif match.is_not_from_this_bot(): #regualr message to bot
             for server in servers:
                 if server.room == room.room_id:
+                    response_json = None
                     #get sure system is up
                     if hasattr(server,'wol'):
                         Status_ok = False
+                        async def check_status():
+                            try:
+                                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
+                                    async with session.post(server.url) as resp:
+                                        r = await resp.text()
+                                        return True
+                            except: pass
+                            return False
                         for a in range(3):
-                            async def check_status():
-                                try:
-                                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
-                                        async with session.post(server.url) as resp:
-                                            r = await resp.text()
-                                            return True
-                                except: pass
-                                return False
                             purl = urllib.parse.urlparse(server.url)
                             net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
                             wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
@@ -75,6 +76,10 @@ async def tell(room, message):
                                     Status_ok = True
                                     break
                             if Status_ok: break
+                        if not Status_ok: 
+                            await bot.api.send_text_message(room.room_id,'failed to wakeup Server')
+                            await bot.api.async_client.room_typing(room.room_id,False,0)
+                            return False
                     #get sure model is loaded
                     await bot.api.async_client.room_typing(room.room_id,False,0)
                     headers = {"Content-Type": "application/json"}
@@ -88,6 +93,10 @@ async def tell(room, message):
                         }
                         async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                             response_json = await resp.json()
+                            if 'error' in response_json:
+                                await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
+                                await bot.api.async_client.room_typing(room.room_id,False,0)
+                                return False
                     #ask model
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
@@ -100,9 +109,13 @@ async def tell(room, message):
                         res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
                         async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                             response_json = await resp.json()
+                            if 'error' in response_json:
+                                await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
+                                await bot.api.async_client.room_typing(room.room_id,False,0)
+                                return False
                             await bot.api.send_text_message(room.room_id,response_json["choices"][0]['message']["content"])
     except BaseException as e:
-        logger.error(str(e), exc_info=True)
+        logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
 datasources = []

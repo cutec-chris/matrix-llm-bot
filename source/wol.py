@@ -18,6 +18,7 @@ def WakeOnLan(ethernet_address,broadcast):
     # Send packet to broadcast address using UDP port 9
     soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     soc.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST,1)
+    soc.bind(('0.0.0.0', 0))
     for i in broadcast:
         soc.sendto(msg,(i,wol_port))
     soc.close()
