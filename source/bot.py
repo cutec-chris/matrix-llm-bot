@@ -114,8 +114,11 @@ async def tell(room, message):
                             if event.sender == message.sender:
                                 ajson['messages'].insert(0,{"role": "user", "content": event.body})
                             elif event.sender == bot.api.creds.username\
-                            and not event.body.startswith('change-setting '):
+                            and not event.body.startswith('change-setting ')\
+                            and not event.body.startswith('add-model '):
                                 ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
+                        if len(ajson['messages'])>0:
+                            ajson['messages'].pop()
                         ajson['messages'].insert(0,{"role": "system", "content": server.system})
                         ajson['messages'].append({"role": "user", "content": ' '.join(match.args())})
                         if hasattr(server,'temperature'):
