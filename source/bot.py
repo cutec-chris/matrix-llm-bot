@@ -97,13 +97,27 @@ async def tell(room, message):
                                 await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
                                 await bot.api.async_client.room_typing(room.room_id,False,0)
                                 return False
+                    #get History
+                    if not hasattr(server,'history_count'):
+                        server.history_count = 0
+                    try: int(server.history_count)
+                    except: server.history_count = 0
+                    events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count))
                     #ask model
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
                             "model": server.model,
-                            "messages": [{"role": "system", "content": server.system},
-                                         {"role": "user", "content": ' '.join(match.args())}],
+                            "messages": [],
                         }
+                        for event in events:
+                            #event.body
+                            if event.sender == message.sender:
+                                ajson['messages'].insert(0,{"role": "user", "content": event.body})
+                            elif event.sender == bot.api.creds.username\
+                            and not event.body.startswith('change-setting '):
+                                ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
+                        ajson['messages'].insert(0,{"role": "system", "content": server.system})
+                        ajson['messages'].append({"role": "user", "content": ' '.join(match.args())})
                         if hasattr(server,'temperature'):
                             ajson['temperature'] = server.temperature
                         res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
