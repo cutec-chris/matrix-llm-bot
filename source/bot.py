@@ -121,8 +121,14 @@ async def tell(room, message):
                             ajson['messages'].pop()
                         ajson['messages'].insert(0,{"role": "system", "content": server.system})
                         ajson['messages'].append({"role": "user", "content": ' '.join(match.args())})
-                        if hasattr(server,'temperature'):
-                            ajson['temperature'] = server.temperature
+                        for param in ['seed']:
+                            if hasattr(server,param):
+                                ajson[param] = getattr(server,param)
+                        for param in ['temperature','top_p','max_tokens','frequency_penalty','presence_penalty']:
+                            if hasattr(server,param):
+                                try:
+                                    ajson[param] = float(getattr(server,param))
+                                except: logging.warning('failed to set parameter:'+param)
                         res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
                         async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                             response_json = await resp.json()
@@ -166,6 +172,12 @@ async def bot_help(room, message):
                       - system
                       - wol (mac address of system that should be waked up)
                       - history_count (amount of messages sof history send to the model to have context)
+                      - temperature
+                      - seed
+                      - top_p
+                      - max_tokens
+                      - frequency_penalty
+                      - presence_penalty
             help:
                 command: help, ?, h
                 description: display help command
