@@ -164,6 +164,8 @@ async def bot_help(room, message):
                     settings:
                       - model
                       - system
+                      - wol (mac address of system that should be waked up)
+                      - history_count (amount of messages sof history send to the model to have context)
             help:
                 command: help, ?, h
                 description: display help command
