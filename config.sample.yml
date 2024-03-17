@@ -1,0 +1,5 @@
+server:
+  url: "https://matrix.org"
+  user: llm-bot
+  password: botpassword
+  prefix: llm-bot
