@@ -51,6 +51,9 @@ async def tell(room, message):
                 await save_servers()
             await bot.api.send_text_message(room.room_id, 'exitting...')
             os._exit(0)
+        elif (match.is_not_from_this_bot() and match.prefix())\
+        and match.command("help"):
+            pass #ignore help command
         elif match.is_not_from_this_bot(): #regualr message to bot
             for server in servers:
                 if server.room == room.room_id:
