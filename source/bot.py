@@ -1,5 +1,5 @@
 from init import *
-import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress
+import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web
 import wol
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
@@ -167,7 +167,6 @@ async def tell(room, message):
                                         }
                                     }
                             await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
-
     except BaseException as e:
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
@@ -220,6 +219,8 @@ async def bot_help(room, message):
     or match.command("?") 
     or match.command("h")):
         await bot.api.send_text_message(room.room_id, bot_help_message)
+async def status_handler(request):
+    return aiohttp.web.Response(text="OK")
 async def main():
     try:
         def unhandled_exception(loop, context):
@@ -229,6 +230,12 @@ async def main():
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
+        app = aiohttp.web.Application()
+        app.add_routes([aiohttp.web.get('/status', status_handler)])
+        runner = aiohttp.web.AppRunner(app)
+        await runner.setup()
+        site = aiohttp.web.TCPSite(runner,port=9998)    
+        await site.start()
         await bot.main()
     except BaseException as e:
         logger.error('bot main fails:'+str(e),stack_info=True)
