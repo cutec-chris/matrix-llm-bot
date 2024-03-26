@@ -105,7 +105,7 @@ async def tell(room, message):
                         server.history_count = 0
                     try: int(server.history_count)
                     except: server.history_count = 0
-                    try: bool(server.threading)
+                    try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
                     except: server.threading = True
                     events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count))
                     #ask model
@@ -122,7 +122,7 @@ async def tell(room, message):
                                 if (thread_rel\
                                 and 'm.relates_to' in event.source['content']\
                                 and event.source['content']['m.relates_to']['event_id'] == thread_rel
-                                    ) or not thread_rel:
+                                    ) or not thread_rel and 'm.relates_to' not in event.source['content']:
                                     if event.sender == message.sender:
                                         ajson['messages'].insert(0,{"role": "user", "content": event.body})
                                     elif event.sender == bot.api.creds.username\
@@ -150,10 +150,12 @@ async def tell(room, message):
                                 return False
                             if not thread_rel:
                                 thread_rel = message.event_id
-                            await bot.api.async_client.room_send(room.room_id,'m.room.message',{
+                            msgc = {
                                     'msgtype': 'm.text',
-                                    'body': response_json["choices"][0]['message']["content"],
-                                    'm.relates_to': {
+                                    'body': response_json["choices"][0]['message']["content"]
+                                }
+                            if server.threading:
+                                msgc['m.relates_to'] = {
                                         "event_id": thread_rel,
                                         "rel_type": "m.thread",
                                         "is_falling_back": True,
@@ -161,7 +163,7 @@ async def tell(room, message):
                                             "event_id": message.event_id
                                         }
                                     }
-                                })
+                            await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
 
     except BaseException as e:
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
