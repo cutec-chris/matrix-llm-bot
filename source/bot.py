@@ -117,20 +117,21 @@ async def tell(room, message):
                         thread_rel = None
                         if 'm.relates_to' in message.source['content'] and server.threading:
                             thread_rel = message.source['content']['m.relates_to']['event_id']
-                        for event in events:
-                            if isinstance(event, nio.RoomMessageText):
-                                if (thread_rel\
-                                and 'm.relates_to' in event.source['content']\
-                                and event.source['content']['m.relates_to']['event_id'] == thread_rel
-                                    ) or not thread_rel and 'm.relates_to' not in event.source['content']:
-                                    if event.sender == message.sender:
-                                        ajson['messages'].insert(0,{"role": "user", "content": event.body})
-                                    elif event.sender == bot.api.creds.username\
-                                    and not event.body.startswith('change-setting ')\
-                                    and not event.body.startswith('add-model '):
-                                        ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
-                            if len(ajson['messages'])>int(server.history_count):
-                                break
+                        if not server.threading or thread_rel:
+                            for event in events:
+                                if isinstance(event, nio.RoomMessageText):
+                                    if (thread_rel\
+                                    and 'm.relates_to' in event.source['content']\
+                                    and event.source['content']['m.relates_to']['event_id'] == thread_rel
+                                        ) or not thread_rel and 'm.relates_to' not in event.source['content']:
+                                        if event.sender == message.sender:
+                                            ajson['messages'].insert(0,{"role": "user", "content": event.body})
+                                        elif event.sender == bot.api.creds.username\
+                                        and not event.body.startswith('change-setting ')\
+                                        and not event.body.startswith('add-model '):
+                                            ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
+                                if len(ajson['messages'])>int(server.history_count):
+                                    break
                         if len(ajson['messages'])>0:
                             ajson['messages'].pop()
                         ajson['messages'].insert(0,{"role": "system", "content": server.system})
