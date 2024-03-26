@@ -105,6 +105,8 @@ async def tell(room, message):
                         server.history_count = 0
                     try: int(server.history_count)
                     except: server.history_count = 0
+                    try: bool(server.threading)
+                    except: server.threading = True
                     events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count))
                     #ask model
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
@@ -112,14 +114,21 @@ async def tell(room, message):
                             "model": server.model,
                             "messages": [],
                         }
+                        thread_rel = None
+                        if 'm.relates_to' in message.source['content'] and server.threading:
+                            thread_rel = message.source['content']['m.relates_to']['event_id']
                         for event in events:
-                            #event.body
-                            if event.sender == message.sender:
-                                ajson['messages'].insert(0,{"role": "user", "content": event.body})
-                            elif event.sender == bot.api.creds.username\
-                            and not event.body.startswith('change-setting ')\
-                            and not event.body.startswith('add-model '):
-                                ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
+                            if isinstance(event, nio.RoomMessageText):
+                                if (thread_rel\
+                                and 'm.relates_to' in event.source['content']\
+                                and event.source['content']['m.relates_to']['event_id'] == thread_rel
+                                    ) or not thread_rel:
+                                    if event.sender == message.sender:
+                                        ajson['messages'].insert(0,{"role": "user", "content": event.body})
+                                    elif event.sender == bot.api.creds.username\
+                                    and not event.body.startswith('change-setting ')\
+                                    and not event.body.startswith('add-model '):
+                                        ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
                         if len(ajson['messages'])>0:
                             ajson['messages'].pop()
                         ajson['messages'].insert(0,{"role": "system", "content": server.system})
@@ -139,7 +148,21 @@ async def tell(room, message):
                                 await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
                                 await bot.api.async_client.room_typing(room.room_id,False,0)
                                 return False
-                            await bot.api.send_text_message(room.room_id,response_json["choices"][0]['message']["content"])
+                            if not thread_rel:
+                                thread_rel = message.event_id
+                            await bot.api.async_client.room_send(room.room_id,'m.room.message',{
+                                    'msgtype': 'm.text',
+                                    'body': response_json["choices"][0]['message']["content"],
+                                    'm.relates_to': {
+                                        "event_id": thread_rel,
+                                        "rel_type": "m.thread",
+                                        "is_falling_back": True,
+                                        "m.in_reply_to": {
+                                            "event_id": message.event_id
+                                        }
+                                    }
+                                })
+
     except BaseException as e:
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
@@ -173,6 +196,7 @@ async def bot_help(room, message):
                     settings:
                       - model
                       - system
+                      - threading (bool, answer in threads and use thread content as history)
                       - wol (mac address of system that should be waked up)
                       - history_count (amount of messages sof history send to the model to have context)
                       - temperature
