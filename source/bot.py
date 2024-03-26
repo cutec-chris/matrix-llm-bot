@@ -107,7 +107,7 @@ async def tell(room, message):
                     except: server.history_count = 0
                     try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
                     except: server.threading = True
-                    events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count))
+                    events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
                     #ask model
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
@@ -129,6 +129,8 @@ async def tell(room, message):
                                     and not event.body.startswith('change-setting ')\
                                     and not event.body.startswith('add-model '):
                                         ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
+                            if len(ajson['messages'])>int(server.history_count):
+                                break
                         if len(ajson['messages'])>0:
                             ajson['messages'].pop()
                         ajson['messages'].insert(0,{"role": "system", "content": server.system})
