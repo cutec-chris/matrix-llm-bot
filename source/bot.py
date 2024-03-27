@@ -232,7 +232,7 @@ async def main():
         loop.set_exception_handler(unhandled_exception)
         app = aiohttp.web.Application()
         app.add_routes([aiohttp.web.get('/status', status_handler)])
-        runner = aiohttp.web.AppRunner(app)
+        runner = aiohttp.web.AppRunner(app, access_log=None)
         await runner.setup()
         site = aiohttp.web.TCPSite(runner,port=9998)    
         await site.start()
