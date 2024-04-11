@@ -1,3 +1,6 @@
 asyncio
 simplematrixbotlib
 pyyaml
+openai-whisper
+crewai
+langchain_experimental
