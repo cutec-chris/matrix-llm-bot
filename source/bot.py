@@ -1,6 +1,6 @@
 from init import *
-import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web
-import wol
+import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web,markdown
+import wol,audio_whisper
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
@@ -85,6 +85,7 @@ async def tell(room, message):
                             return False
                     #get sure model is loaded
                     await bot.api.async_client.room_typing(room.room_id,False,0)
+                    await bot.api.async_client.set_presence('unavailable','')
                     headers = {"Content-Type": "application/json"}
                     if hasattr(server,'apikey'):
                         headers["Authorization"] = f"Bearer {server.apikey}"
@@ -108,6 +109,7 @@ async def tell(room, message):
                     try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
                     except: server.threading = True
                     events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
+                    await bot.api.async_client.set_presence('online','')
                     #ask model
                     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
                         ajson = {
@@ -153,9 +155,13 @@ async def tell(room, message):
                                 return False
                             if not thread_rel:
                                 thread_rel = message.event_id
+                            message_p = response_json["choices"][0]['message']["content"]
                             msgc = {
-                                    'msgtype': 'm.text',
-                                    'body': response_json["choices"][0]['message']["content"]
+                                    "msgtype": "m.text",
+                                    "body": message_p,
+                                    "format": "org.matrix.custom.html",
+                                    "formatted_body": markdown.markdown(message_p,
+                                                                        extensions=['fenced_code', 'nl2br'])
                                 }
                             if server.threading:
                                 msgc['m.relates_to'] = {
@@ -195,11 +201,14 @@ async def bot_help(room, message):
     Help Message:
         prefix: {prefix}
         commands:
+            add-model:
+                command: add-model model openai-compatible-url
             change-setting:
                 command: change-setting setting value
                     settings:
                       - model
                       - system
+                      - apikey
                       - threading (bool, answer in threads and use thread content as history)
                       - wol (mac address of system that should be waked up)
                       - history_count (amount of messages sof history send to the model to have context)
