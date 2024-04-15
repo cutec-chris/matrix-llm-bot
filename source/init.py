@@ -25,7 +25,12 @@ class FailsafeBot(botlib.Bot):
             await asyncio.sleep(1)
             await self.async_client.sync_forever(timeout=30000, full_state=True)
 creds = botlib.Creds(config['server']['url'], config['server']['user'], config['server']['password'])
-bot = FailsafeBot(creds)
+bconfig = botlib.Config()
+bconfig.encryption_enabled = True
+#bconfig.emoji_verify = True
+bconfig.ignore_unverified_devices = True
+bconfig.store_path = str(configpath / 'crypto_store')
+bot = FailsafeBot(creds,bconfig)
 class Config(object):
     def __init__(self,room,**kwargs) -> None:
         if isinstance(room, dict):
