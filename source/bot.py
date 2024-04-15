@@ -1,6 +1,6 @@
 from init import *
 import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web,markdown
-import wol,audio_whisper
+import wol,audio_whisper,nio
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
@@ -138,6 +138,7 @@ async def tell(room, message):
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
+        match2 = botlib.MessageMatch(room, message, bot, ' * ')
         tuser = None
         if match.is_not_from_this_bot() and room.member_count==2:
             tuser = message.sender
@@ -150,7 +151,7 @@ async def tell(room, message):
             servers.append(server)
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
-        elif match.command("change-setting"):
+        elif match.command("change-setting") or match2.command("change-setting"):
             set_target = None
             for server in servers:
                 if server.room == room.room_id:
