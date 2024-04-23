@@ -153,15 +153,20 @@ async def tell(room, message):
             await bot.api.send_text_message(room.room_id, 'ok')
         elif match.command("change-setting") or match2.command("change-setting"):
             set_target = None
+            if match2.command("change-setting"):
+                match = match2
             for server in servers:
                 if server.room == room.room_id:
                     set_target = server
             if set_target:
                 server = set_target
-                setattr(server,match.args()[1],' '.join(match.args()[2:]))
+                tattr = message.body
+                tattr = tattr[tattr.find(match.args()[1])+len(match.args()[1])+1:]
+                setattr(server,match.args()[1],tattr)
                 set_target = server
                 await save_servers()
-                await bot.api.send_text_message(room.room_id, 'ok')
+                if match != match2:
+                    await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("restart"):
             pf = None
