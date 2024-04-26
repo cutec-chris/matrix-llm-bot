@@ -3,5 +3,5 @@ simplematrixbotlib
 matrix-nio[e2e]
 pyyaml
 openai-whisper
-crewai
+crewai[tools]
 langchain_experimental

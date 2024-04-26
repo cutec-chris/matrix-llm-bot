@@ -1,13 +1,13 @@
 from init import *
 import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web,markdown
-import wol,audio_whisper,nio
+import wol,audio_whisper,nio.crypto
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
 class BotData(Config):
     def __init__(self, room, **kwargs) -> None:
         super().__init__(room, **kwargs)
-async def handle_message(room,server,message,match):
+async def handle_message_openai(room,server,message,match):
     try:
         response_json = None
         #get sure system is up
@@ -37,7 +37,7 @@ async def handle_message(room,server,message,match):
                 return False
         #get sure model is loaded
         await bot.api.async_client.room_typing(room.room_id,False,0)
-        await bot.api.async_client.set_presence('unavailable','')
+        await bot.api.async_client.set_presence('online','')
         headers = {"Content-Type": "application/json"}
         if hasattr(server,'apikey'):
             headers["Authorization"] = f"Bearer {server.apikey}"
@@ -50,9 +50,10 @@ async def handle_message(room,server,message,match):
             async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                 response_json = await resp.json()
                 if 'error' in response_json:
-                    await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
-                    await bot.api.async_client.room_typing(room.room_id,False,0)
-                    return False
+                    if not response_json['error']['type'] == 'invalid_request_error':
+                        await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
+                        await bot.api.async_client.room_typing(room.room_id,False,0)
+                        return False
         #get History
         if not hasattr(server,'history_count'):
             server.history_count = 0
@@ -61,7 +62,7 @@ async def handle_message(room,server,message,match):
         try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
         except: server.threading = True
         events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
-        await bot.api.async_client.set_presence('online','')
+        await bot.api.async_client.set_presence('unavalible','')
         #ask model
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
             ajson = {
@@ -129,6 +130,42 @@ async def handle_message(room,server,message,match):
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
+async def handle_message_comfui(room,server,message,match):
+    try:
+        response_json = None
+        #get sure system is up
+        if hasattr(server,'wol'):
+            Status_ok = False
+            async def check_status():
+                try:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
+                        async with session.post(server.url) as resp:
+                            r = await resp.text()
+                            return True
+                except: pass
+                return False
+            for a in range(3):
+                purl = urllib.parse.urlparse(server.url)
+                net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
+                wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
+                for i in range(60):
+                    if await check_status() == True:
+                        logging.info('client waked up after '+str(i)+' seconds')
+                        Status_ok = True
+                        break
+                if Status_ok: break
+            if not Status_ok: 
+                await bot.api.send_text_message(room.room_id,'failed to wakeup Server')
+                await bot.api.async_client.room_typing(room.room_id,False,0)
+                return False
+
+    except BaseException as e:
+        logger.error(str(e)+'\n'+str(response_json), exc_info=True)
+        await bot.api.send_text_message(room.room_id,str(e))
+    await bot.api.async_client.room_typing(room.room_id,False,0)
+@bot.listener.on_custom_event(nio.RoomEncryptedMedia)
+async def file(room,event):
+    pass
 
 @bot.listener.on_message_event
 async def tell(room, message):
@@ -147,6 +184,14 @@ async def tell(room, message):
                 url=match.args()[2],
                 model=match.args()[1],
                 system='You are an helpful Assistent!'
+            )
+            servers.append(server)
+            await save_servers()
+            await bot.api.send_text_message(room.room_id, 'ok')
+        elif match.command("add-comfui"):
+            server = BotData(room=room.room_id,
+                url=match.args()[1],
+                api='comfui'
             )
             servers.append(server)
             await save_servers()
@@ -185,7 +230,13 @@ async def tell(room, message):
             for server in servers:
                 if server.room == room.room_id:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(handle_message(room,server,message,match))
+                    api = 'openai'
+                    if hasattr(server,'api'):
+                        api = getattr(server,'api')
+                    if api == 'openai':
+                        loop.create_task(handle_message_openai(room,server,message,match))
+                    elif api == 'comfui':
+                        loop.create_task(handle_message_comfui(room,server,message,match))
     except BaseException as e:
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
@@ -215,6 +266,8 @@ async def bot_help(room, message):
         commands:
             add-model:
                 command: add-model model openai-compatible-url
+            add-comfui:
+                command: add-comfui comfui-base-url
             change-setting:
                 command: change-setting setting value
                     settings:
