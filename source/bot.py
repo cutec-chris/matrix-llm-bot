@@ -56,13 +56,13 @@ async def handle_message_openai(room,server,message,match):
                         return False
         #get History
         if not hasattr(server,'history_count'):
-            server.history_count = 0
+            server.history_count = 15
         try: int(server.history_count)
         except: server.history_count = 0
         try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
         except: server.threading = True
-        events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
         await bot.api.async_client.set_presence('unavalible','')
+        events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
         #ask model
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
             ajson = {
