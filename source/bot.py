@@ -165,8 +165,22 @@ async def handle_message_comfui(room,server,message,match):
     await bot.api.async_client.room_typing(room.room_id,False,0)
 @bot.listener.on_custom_event(nio.RoomEncryptedMedia)
 async def file(room,event):
-    pass
-
+    try:
+        target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2]
+        response = await bot.async_client.download(mxc=event.url)
+        data = response.body
+        pathlib.Path(target_folder).mkdir(parents=True,exist_ok=True)
+        async with aiofiles.open(str(target_folder / event.body), "wb") as f:
+            await f.write(
+                nio.crypto.attachments.decrypt_attachment(
+                    data,
+                    event.source["content"]["file"]["key"]["k"],
+                    event.source["content"]["file"]["hashes"]["sha256"],
+                    event.source["content"]["file"]["iv"],
+                )
+            )
+    except BaseException as e:
+        logger.error(str(e), exc_info=True)
 @bot.listener.on_message_event
 async def tell(room, message):
     try:
