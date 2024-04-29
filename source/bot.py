@@ -54,7 +54,7 @@ async def handle_message_openai(room,server,message,match):
                         await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
                         await bot.api.async_client.room_typing(room.room_id,False,0)
                         return False
-        #get History
+        #ensure variables
         if not hasattr(server,'history_count'):
             server.history_count = 15
         try: int(server.history_count)
@@ -62,6 +62,7 @@ async def handle_message_openai(room,server,message,match):
         try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
         except: server.threading = True
         await bot.api.async_client.set_presence('unavalible','')
+        #get History
         events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
         #ask model
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
@@ -131,8 +132,49 @@ async def handle_message_openai(room,server,message,match):
         await bot.api.send_text_message(room.room_id,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
 async def handle_message_comfui(room,server,message,match):
+    async def check_param(param_name):
+        if not hasattr(server,'history_count'):
+            server.history_count = 15
+        try: int(server.history_count)
+        except: server.history_count = 0
+        try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
+        except: server.threading = True
+        events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
+        name_found = False
+        msgc = {
+                "msgtype": "m.text",
+            }
+        if thread_rel:
+            msgc['m.relates_to'] = {
+                    "event_id": thread_rel,
+                    "rel_type": "m.thread",
+                    "is_falling_back": True,
+                    "m.in_reply_to": {
+                        "event_id": message.event_id
+                    }
+                }
+        if not server.threading or thread_rel:
+            for event in reversed(events):
+                if isinstance(event, nio.RoomMessageText):
+                    if (thread_rel\
+                    and 'm.relates_to' in event.source['content']\
+                    and event.source['content']['m.relates_to']['event_id'] == thread_rel
+                        ) or not thread_rel and 'm.relates_to' not in event.source['content']:
+                        if name_found:
+                            return event.body
+                        if param_name in event.body:
+                            name_found = True
+        msgc['body'] = 'please enter variable '+str(param_name)
+        await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
+        return False
     try:
         response_json = None
+        thread_rel = None
+        if 'm.relates_to' in message.source['content'] and server.threading:
+            thread_rel = message.source['content']['m.relates_to']['event_id']
+        if not thread_rel:
+            thread_rel = message.event_id
+        workflow = await check_param('workflow')
         #get sure system is up
         if hasattr(server,'wol'):
             Status_ok = False
@@ -307,17 +349,19 @@ async def bot_help(room, message):
                       - frequency_penalty
                       - presence_penalty
             help:
-                command: help, ?, h
+                command: help, ?
                 description: display help command
                 """
     match = botlib.MessageMatch(room, message, bot, prefix)
     if match.is_not_from_this_bot() and (
        match.command("help") 
-    or match.command("?") 
-    or match.command("h")):
+    or match.command("?")):
         await bot.api.send_text_message(room.room_id, bot_help_message)
 async def status_handler(request):
     return aiohttp.web.Response(text="OK")
+@bot.listener.on_startup
+async def startup(room):
+    await bot.api.async_client.set_presence('unavalible','')
 async def main():
     try:
         def unhandled_exception(loop, context):
