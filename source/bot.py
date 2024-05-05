@@ -44,6 +44,8 @@ async def handle_message_openai(room,server,message,match):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
             ajson = {
                 "model": server.model,
+                "keep_alive": 0,
+                "stream": false,
                 "messages": [{"role": "system", "content": ""},
                                 {"role": "user", "content": ""}],
             }
@@ -68,6 +70,8 @@ async def handle_message_openai(room,server,message,match):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
             ajson = {
                 "model": server.model,
+                "keep_alive": 0,
+                "stream": false,
                 "messages": [],
             }
             thread_rel = None
