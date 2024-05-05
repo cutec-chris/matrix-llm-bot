@@ -45,7 +45,7 @@ async def handle_message_openai(room,server,message,match):
             ajson = {
                 "model": server.model,
                 "keep_alive": 0,
-                "stream": false,
+                "stream": False,
                 "messages": [{"role": "system", "content": ""},
                                 {"role": "user", "content": ""}],
             }
@@ -71,7 +71,7 @@ async def handle_message_openai(room,server,message,match):
             ajson = {
                 "model": server.model,
                 "keep_alive": 0,
-                "stream": false,
+                "stream": False,
                 "messages": [],
             }
             thread_rel = None
