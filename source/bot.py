@@ -61,7 +61,7 @@ async def handle_message_openai(room,server,message,match):
         except: server.history_count = 0
         try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
         except: server.threading = True
-        await bot.api.async_client.set_presence('unavalible','')
+        await bot.api.async_client.set_presence('unavailable','')
         #get History
         events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
         #ask model
