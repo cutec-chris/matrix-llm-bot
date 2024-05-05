@@ -175,6 +175,7 @@ async def handle_message_comfui(room,server,message,match):
         if not thread_rel:
             thread_rel = message.event_id
         workflow = await check_param('workflow')
+        if workflow == False: return False
         #get sure system is up
         if hasattr(server,'wol'):
             Status_ok = False
@@ -223,7 +224,7 @@ async def enc_file(room,event):
     except BaseException as e:
         logger.error(str(e), exc_info=True)
 @bot.listener.on_custom_event(nio.RoomMessageMedia)
-async def enc_file(room,event):
+async def file(room,event):
     try:
         target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2]
         response = await bot.async_client.download(mxc=event.url)
@@ -319,10 +320,6 @@ try:
           servers.append(BotData(server))
 except BaseException as e:
     logger.error('Failed to read data.json:'+str(e))
-@bot.listener.on_startup
-async def startup(room):
-    global loop,servers,news_task,dates_task
-    loop = asyncio.get_running_loop()
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""
@@ -359,9 +356,12 @@ async def bot_help(room, message):
         await bot.api.send_text_message(room.room_id, bot_help_message)
 async def status_handler(request):
     return aiohttp.web.Response(text="OK")
-@bot.listener.on_startup
-async def startup(room):
-    await bot.api.async_client.set_presence('unavalible','')
+async def startup():
+    for i in range(15):
+        await asyncio.sleep(1)
+        if bot.api.async_client.logged_in:
+            await bot.api.async_client.set_presence('unavailable','')
+            return
 async def main():
     try:
         def unhandled_exception(loop, context):
@@ -377,6 +377,7 @@ async def main():
         await runner.setup()
         site = aiohttp.web.TCPSite(runner,port=9998)    
         await site.start()
+        loop.create_task(startup())
         await bot.main()
     except BaseException as e:
         logger.error('bot main fails:'+str(e),stack_info=True)
