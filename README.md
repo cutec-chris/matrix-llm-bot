@@ -9,8 +9,15 @@ Talk to most Large Language Models via any Matrix client!
 3. Start chatting.
 
 # Features
+- Use in every room another Model
+- any openai compatible api is useable (openai, groq, ollama ...)
+- Answer in Threads (configureable)
 - Shows typing indicator!
 - Stores configureable amount of messages as context for conversations
+
+# Planned Features
+- comfui support (multiple workflows)
+- scripting support (code snittpets can do anything you can do in chat, like RAG, Crews ...)
 
 # Configure
 
