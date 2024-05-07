@@ -48,7 +48,7 @@ async def handle_message_openai(room,server,message,match):
                 "messages": [{"role": "system", "content": ""},
                                 {"role": "user", "content": ""}],
             }
-            if not hasattr(server,'keep_alive'):
+            if hasattr(server,'keep_alive'):
                 ajson['keep_alive'] = server.keep_alive
             async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                 response_json = await resp.json()
@@ -74,7 +74,7 @@ async def handle_message_openai(room,server,message,match):
                 "stream": False,
                 "messages": [],
             }
-            if not hasattr(server,'keep_alive'):
+            if hasattr(server,'keep_alive'):
                 ajson['keep_alive'] = server.keep_alive
             thread_rel = None
             if 'm.relates_to' in message.source['content'] and server.threading:
