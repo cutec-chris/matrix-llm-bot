@@ -277,9 +277,10 @@ async def tell(room, message):
                     set_target = server
             if set_target:
                 server = set_target
-                tattr = message.body
-                tattr = tattr[tattr.find(match.args()[1])+len(match.args()[1])+1:]
-                setattr(server,match.args()[1],tattr)
+                tattr = message.body[message.body.find('change-setting')+15:]
+                tval = tattr[tattr.find(' ')+1:]
+                tattr = tattr[:tattr.find(' ')].replace('\\_','_')
+                setattr(server,tattr,tval)
                 set_target = server
                 await save_servers()
                 if match != match2:
@@ -366,9 +367,11 @@ async def status_handler(request):
 async def startup():
     for i in range(15):
         await asyncio.sleep(1)
-        if bot.api.async_client.logged_in:
-            await bot.api.async_client.set_presence('unavailable','')
-            return
+        try:
+            if bot.api.async_client.logged_in:
+                await bot.api.async_client.set_presence('unavailable','')
+                return
+        except:pass
 async def main():
     try:
         def unhandled_exception(loop, context):
