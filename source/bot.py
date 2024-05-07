@@ -44,11 +44,12 @@ async def handle_message_openai(room,server,message,match):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
             ajson = {
                 "model": server.model,
-                "keep_alive": 0,
                 "stream": False,
                 "messages": [{"role": "system", "content": ""},
                                 {"role": "user", "content": ""}],
             }
+            if not hasattr(server,'keep_alive'):
+                ajson['keep_alive'] = server.keep_alive
             async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
                 response_json = await resp.json()
                 if 'error' in response_json:
@@ -70,10 +71,11 @@ async def handle_message_openai(room,server,message,match):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
             ajson = {
                 "model": server.model,
-                "keep_alive": 0,
                 "stream": False,
                 "messages": [],
             }
+            if not hasattr(server,'keep_alive'):
+                ajson['keep_alive'] = server.keep_alive
             thread_rel = None
             if 'm.relates_to' in message.source['content'] and server.threading:
                 thread_rel = message.source['content']['m.relates_to']['event_id']
@@ -349,6 +351,7 @@ async def bot_help(room, message):
                       - max_tokens
                       - frequency_penalty
                       - presence_penalty
+                      - keep_alive
             help:
                 command: help, ?
                 description: display help command
