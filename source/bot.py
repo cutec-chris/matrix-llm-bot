@@ -97,7 +97,10 @@ async def handle_message_openai(room,server,message,match):
             if len(ajson['messages'])>0:
                 ajson['messages'].pop()
             ajson['messages'].insert(0,{"role": "system", "content": server.system})
-            ajson['messages'].append({"role": "user", "content": ' '.join(match.args())})
+            words = match.args()
+            if words[0] != match.command():
+                words = [match.command()]+words
+            ajson['messages'].append({"role": "user", "content": ' '.join(words)})
             for param in ['seed']:
                 if hasattr(server,param):
                     ajson[param] = getattr(server,param)
@@ -252,11 +255,20 @@ async def tell(room, message):
         if match.is_not_from_this_bot() and room.member_count==2:
             tuser = message.sender
         if match.command("add-model"):
-            server = BotData(room=room.room_id,
-                url=match.args()[2],
-                model=match.args()[1],
-                system='You are an helpful Assistent!'
-            )
+            set_target = None
+            for server in servers:
+                if server.room == room.room_id:
+                    set_target = server
+            if not set_target:
+                server = BotData(room=room.room_id,
+                    url=match.args()[2],
+                    model=match.args()[1],
+                    system='You are an helpful Assistent!'
+                )
+            else:
+                server = set_target
+                server.url = match.args()[2]
+                server.model = match.args()[1]
             servers.append(server)
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
@@ -308,8 +320,10 @@ async def tell(room, message):
                         api = getattr(server,'api')
                     if api == 'openai':
                         loop.create_task(handle_message_openai(room,server,message,match))
+                        break
                     elif api == 'comfui':
                         loop.create_task(handle_message_comfui(room,server,message,match))
+                        break
     except BaseException as e:
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
