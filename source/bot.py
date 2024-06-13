@@ -1,6 +1,6 @@
 from init import *
 import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web,markdown
-import wol,audio_whisper,nio.crypto
+import nio.crypto,ai.llm
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
@@ -9,54 +9,15 @@ class BotData(Config):
         super().__init__(room, **kwargs)
 async def handle_message_openai(room,server,message,match):
     try:
-        response_json = None
-        #get sure system is up
-        if hasattr(server,'wol'):
-            Status_ok = False
-            async def check_status():
-                try:
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(connect=1)) as session:
-                        async with session.post(server.url) as resp:
-                            r = await resp.text()
-                            return True
-                except: pass
-                return False
-            for a in range(3):
-                purl = urllib.parse.urlparse(server.url)
-                net = ipaddress.IPv4Network(purl.hostname + '/' + '255.255.255.0', False)
-                wol.WakeOnLan(server.wol,[str(net.broadcast_address)])
-                for i in range(60):
-                    if await check_status() == True:
-                        logging.info('client waked up after '+str(i)+' seconds')
-                        Status_ok = True
-                        break
-                if Status_ok: break
-            if not Status_ok: 
-                await bot.api.send_text_message(room.room_id,'failed to wakeup Server')
-                await bot.api.async_client.room_typing(room.room_id,False,0)
-                return False
-        #get sure model is loaded
-        await bot.api.async_client.room_typing(room.room_id,False,0)
-        await bot.api.async_client.set_presence('online','')
-        headers = {"Content-Type": "application/json"}
-        if hasattr(server,'apikey'):
-            headers["Authorization"] = f"Bearer {server.apikey}"
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
-            ajson = {
-                "model": server.model,
-                "stream": False,
-                "messages": [{"role": "system", "content": ""},
-                                {"role": "user", "content": ""}],
-            }
-            if hasattr(server,'keep_alive'):
-                ajson['keep_alive'] = server.keep_alive
-            async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
-                response_json = await resp.json()
-                if 'error' in response_json:
-                    if not response_json['error']['type'] == 'invalid_request_error':
-                        await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
-                        await bot.api.async_client.room_typing(room.room_id,False,0)
-                        return False
+        if not hasattr(server,'_model'):
+            wol = None
+            if hasattr(server,'wol'):
+                wol = server.wol
+            apikey = None
+            if hasattr(server,'apikey'):
+                apikey = server.apikey
+            server._model = ai.llm.model(server.model,api=server.url,wol=wol,apikey=apikey)
+        server._model.system = server.system
         #ensure variables
         if not hasattr(server,'history_count'):
             server.history_count = 15
@@ -67,77 +28,68 @@ async def handle_message_openai(room,server,message,match):
         await bot.api.async_client.set_presence('unavailable','')
         #get History
         events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
+        thread_rel = None
+        if 'm.relates_to' in message.source['content'] and server.threading:
+            thread_rel = message.source['content']['m.relates_to']['event_id']
+        history = []
+        if not server.threading or thread_rel:
+            for event in events:
+                if isinstance(event, nio.RoomMessageText):
+                    if (thread_rel\
+                    and 'm.relates_to' in event.source['content']\
+                    and (event.source['content']['m.relates_to']['event_id'] == thread_rel)
+                        ) or not thread_rel and 'm.relates_to' not in event.source['content']:
+                        if event.sender == message.sender:
+                            history.insert(0,{"role": "user", "content": event.body})
+                        elif event.sender == bot.api.creds.username\
+                        and not event.body.startswith('change-setting ')\
+                        and not event.body.startswith('add-model '):
+                            history.insert(0,{"role": "assistant", "content": event.body})
+                    elif event.source['event_id'] == thread_rel:
+                        history.insert(0,{"role": "user", "content": event.body})
+                if len(history)>int(server.history_count):
+                    break
+        if len(history)>0:
+            history.pop()
+        words = match.args()
+        if words == [] or words[0] != match.command():
+            words = [match.command()]+words
         #ask model
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=None)) as session:
-            ajson = {
-                "model": server.model,
-                "stream": False,
-                "messages": [],
+        if hasattr(server,'keep_alive'):
+            server._model.kwargs['keep_alive'] = server.keep_alive
+        """
+        for param in ['seed']:
+            if hasattr(server,param):
+                ajson[param] = getattr(server,param)
+        for param in ['temperature','top_p','max_tokens','frequency_penalty','presence_penalty']:
+            if hasattr(server,param):
+                try:
+                    ajson[param] = float(getattr(server,param))
+                except: logging.warning('failed to set parameter:'+param)
+        """
+        res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
+        message_p = await server._model.query(' '.join(words),history)
+        if not thread_rel:
+            thread_rel = message.event_id
+        msgc = {
+                "msgtype": "m.text",
+                "body": message_p,
+                "format": "org.matrix.custom.html",
+                "formatted_body": markdown.markdown(message_p,
+                                                    extensions=['fenced_code', 'nl2br'])
             }
-            if hasattr(server,'keep_alive'):
-                ajson['keep_alive'] = server.keep_alive
-            thread_rel = None
-            if 'm.relates_to' in message.source['content'] and server.threading:
-                thread_rel = message.source['content']['m.relates_to']['event_id']
-            if not server.threading or thread_rel:
-                for event in events:
-                    if isinstance(event, nio.RoomMessageText):
-                        if (thread_rel\
-                        and 'm.relates_to' in event.source['content']\
-                        and event.source['content']['m.relates_to']['event_id'] == thread_rel
-                            ) or not thread_rel and 'm.relates_to' not in event.source['content']:
-                            if event.sender == message.sender:
-                                ajson['messages'].insert(0,{"role": "user", "content": event.body})
-                            elif event.sender == bot.api.creds.username\
-                            and not event.body.startswith('change-setting ')\
-                            and not event.body.startswith('add-model '):
-                                ajson['messages'].insert(0,{"role": "assistant", "content": event.body})
-                    if len(ajson['messages'])>int(server.history_count):
-                        break
-            if len(ajson['messages'])>0:
-                ajson['messages'].pop()
-            ajson['messages'].insert(0,{"role": "system", "content": server.system})
-            words = match.args()
-            if words[0] != match.command():
-                words = [match.command()]+words
-            ajson['messages'].append({"role": "user", "content": ' '.join(words)})
-            for param in ['seed']:
-                if hasattr(server,param):
-                    ajson[param] = getattr(server,param)
-            for param in ['temperature','top_p','max_tokens','frequency_penalty','presence_penalty']:
-                if hasattr(server,param):
-                    try:
-                        ajson[param] = float(getattr(server,param))
-                    except: logging.warning('failed to set parameter:'+param)
-            res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
-            async with session.post(server.url+"/chat/completions", headers=headers, json=ajson) as resp:
-                response_json = await resp.json()
-                if 'error' in response_json:
-                    await bot.api.send_text_message(room.room_id,str(response_json['error']['message']))
-                    await bot.api.async_client.room_typing(room.room_id,False,0)
-                    return False
-                if not thread_rel:
-                    thread_rel = message.event_id
-                message_p = response_json["choices"][0]['message']["content"]
-                msgc = {
-                        "msgtype": "m.text",
-                        "body": message_p,
-                        "format": "org.matrix.custom.html",
-                        "formatted_body": markdown.markdown(message_p,
-                                                            extensions=['fenced_code', 'nl2br'])
+        if server.threading:
+            msgc['m.relates_to'] = {
+                    "event_id": thread_rel,
+                    "rel_type": "m.thread",
+                    "is_falling_back": True,
+                    "m.in_reply_to": {
+                        "event_id": message.event_id
                     }
-                if server.threading:
-                    msgc['m.relates_to'] = {
-                            "event_id": thread_rel,
-                            "rel_type": "m.thread",
-                            "is_falling_back": True,
-                            "m.in_reply_to": {
-                                "event_id": message.event_id
-                            }
-                        }
-                await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
+                }
+        await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
     except BaseException as e:
-        logger.error(str(e)+'\n'+str(response_json), exc_info=True)
+        logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
 async def handle_message_comfui(room,server,message,match):
