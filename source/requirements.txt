@@ -2,6 +2,5 @@ asyncio
 simplematrixbotlib
 matrix-nio[e2e]
 pyyaml
-openai-whisper
 crewai[tools]
 langchain_experimental
