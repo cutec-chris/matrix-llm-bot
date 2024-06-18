@@ -2,5 +2,3 @@ asyncio
 simplematrixbotlib
 matrix-nio[e2e]
 pyyaml
-crewai[tools]
-langchain_experimental
