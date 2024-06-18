@@ -14,6 +14,7 @@ Talk to most Large Language Models via any Matrix client!
 - Answer in Threads (configureable)
 - Shows typing indicator!
 - Stores configureable amount of messages as context for conversations
+- wake up Server per WOL on demand
 
 # Planned Features
 - comfui support (multiple workflows)
