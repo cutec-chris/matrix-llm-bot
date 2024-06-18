@@ -71,23 +71,24 @@ async def handle_message_openai(room,server,message,match):
         message_p = await server._model.query(' '.join(words),history)
         if not thread_rel:
             thread_rel = message.event_id
-        msgc = {
-                "msgtype": "m.text",
-                "body": message_p,
-                "format": "org.matrix.custom.html",
-                "formatted_body": markdown.markdown(message_p,
-                                                    extensions=['fenced_code', 'nl2br'])
-            }
-        if server.threading:
-            msgc['m.relates_to'] = {
-                    "event_id": thread_rel,
-                    "rel_type": "m.thread",
-                    "is_falling_back": True,
-                    "m.in_reply_to": {
-                        "event_id": message.event_id
-                    }
+        if message_p:
+            msgc = {
+                    "msgtype": "m.text",
+                    "body": message_p,
+                    "format": "org.matrix.custom.html",
+                    "formatted_body": markdown.markdown(message_p,
+                                                        extensions=['fenced_code', 'nl2br'])
                 }
-        await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
+            if server.threading:
+                msgc['m.relates_to'] = {
+                        "event_id": thread_rel,
+                        "rel_type": "m.thread",
+                        "is_falling_back": True,
+                        "m.in_reply_to": {
+                            "event_id": message.event_id
+                        }
+                    }
+            await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
     except BaseException as e:
         logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
