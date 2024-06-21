@@ -57,7 +57,7 @@ async def handle_message_openai(room,server,message,match):
             if words == [] or words[0] != match.command():
                 words = [match.command()]+words
         elif hasattr(message,'url'):
-            words = ['what','is','this','image','showing','?']
+            words = ['what','shows','this','image','?']
             target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2] / message.event_id
             with open(target_folder / message.body, "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read())
