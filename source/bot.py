@@ -1,5 +1,5 @@
 from init import *
-import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web,markdown
+import os,traceback,pathlib,logging,datetime,sys,time,aiofiles,os,aiohttp,urllib.parse,ipaddress,aiohttp.web,markdown,base64
 import nio.crypto,ai.llm
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
@@ -51,9 +51,17 @@ async def handle_message_openai(room,server,message,match):
                     break
         if len(history)>0:
             history.pop()
-        words = match.args()
-        if words == [] or words[0] != match.command():
-            words = [match.command()]+words
+        images = []
+        if match:
+            words = match.args()
+            if words == [] or words[0] != match.command():
+                words = [match.command()]+words
+        elif hasattr(message,'url'):
+            words = ['what','is','this','image','showing','?']
+            target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2] / message.event_id
+            with open(target_folder / message.body, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read())
+            images.append(encoded_string)
         #ask model
         if hasattr(server,'keep_alive'):
             server._model.kwargs['keep_alive'] = server.keep_alive
@@ -68,7 +76,7 @@ async def handle_message_openai(room,server,message,match):
                 except: logging.warning('failed to set parameter:'+param)
         """
         res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
-        message_p = await server._model.query(' '.join(words),history)
+        message_p = await server._model.query(' '.join(words),history,images=images)
         if not thread_rel:
             thread_rel = message.event_id
         if message_p:
@@ -168,10 +176,33 @@ async def handle_message_comfui(room,server,message,match):
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
+async def handle_image(room,image):
+    try:
+        if not hasattr(server,'_model'):
+            wol = None
+            if hasattr(server,'wol'):
+                wol = server.wol
+            apikey = None
+            if hasattr(server,'apikey'):
+                apikey = server.apikey
+            server._model = ai.llm.model(server.model,api=server.url,wol=wol,apikey=apikey)
+        server._model.system = server.system
+        #ensure variables
+        if not hasattr(server,'history_count'):
+            server.history_count = 15
+        try: int(server.history_count)
+        except: server.history_count = 0
+        try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
+        except: server.threading = True
+    
+    except BaseException as e:
+        logger.error(str(e), exc_info=True)
+        await bot.api.send_text_message(room.room_id,str(e))
+
 @bot.listener.on_custom_event(nio.RoomEncryptedMedia)
 async def enc_file(room,event):
     try:
-        target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2]
+        target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2] / event.event_id
         response = await bot.async_client.download(mxc=event.url)
         pathlib.Path(target_folder).mkdir(parents=True,exist_ok=True)
         async with aiofiles.open(str(target_folder / event.body), "wb") as f:
@@ -183,16 +214,32 @@ async def enc_file(room,event):
                     event.source["content"]["file"]["iv"],
                 )
             )
+        for server in servers:
+            if server.room == room.room_id:
+                loop = asyncio.get_running_loop()
+                api = 'openai'
+                if hasattr(server,'api'):
+                    api = getattr(server,'api')
+                if api == 'openai':
+                    loop.create_task(handle_message_openai(room,server,event,None))
     except BaseException as e:
         logger.error(str(e), exc_info=True)
 @bot.listener.on_custom_event(nio.RoomMessageMedia)
 async def file(room,event):
     try:
-        target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2]
+        target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2] / event.event_id
         response = await bot.async_client.download(mxc=event.url)
         pathlib.Path(target_folder).mkdir(parents=True,exist_ok=True)
         async with aiofiles.open(str(target_folder / event.body), "wb") as f:
             await f.write(response.transport_response._body)
+        for server in servers:
+            if server.room == room.room_id:
+                loop = asyncio.get_running_loop()
+                api = 'openai'
+                if hasattr(server,'api'):
+                    api = getattr(server,'api')
+                if api == 'openai':
+                    loop.create_task(handle_message_openai(room,server,event,None))
     except BaseException as e:
         logger.error(str(e), exc_info=True)
 @bot.listener.on_message_event
