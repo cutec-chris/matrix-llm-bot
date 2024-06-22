@@ -47,6 +47,22 @@ async def handle_message_openai(room,server,message,match):
                             history.insert(0,{"role": "assistant", "content": event.body})
                     elif event.source['event_id'] == thread_rel:
                         history.insert(0,{"role": "user", "content": event.body})
+                elif isinstance(event, nio.RoomEncryptedMedia)\
+                  or isinstance(event, nio.RoomMessageMedia):
+                    if ('m.relates_to' in event.source['content']\
+                    and (event.source['content']['m.relates_to']['event_id'] == thread_rel))\
+                    or event.source['event_id'] == thread_rel:
+                        try:
+                            images = []
+                            target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2] / event.event_id
+                            with open(target_folder / event.body, "rb") as image_file:
+                                encoded_string = base64.b64encode(image_file.read())
+                            images.append(encoded_string.decode())
+                            entry = {"role": "user", "content": "whats in this image?", "images": images}
+                            history.insert(0,entry)
+                            images = []
+                        except BaseException as e:
+                            pass
                 if len(history)>int(server.history_count):
                     break
         if len(history)>0:
@@ -57,7 +73,7 @@ async def handle_message_openai(room,server,message,match):
             if words == [] or words[0] != match.command():
                 words = [match.command()]+words
         elif hasattr(message,'url'):
-            words = ['what','shows','this','image','?']
+            words = ['whats','in','this','image','?']
             target_folder = configpath / 'files' / room.room_id[1:room.room_id.find(':')-2] / message.event_id
             with open(target_folder / message.body, "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read())
