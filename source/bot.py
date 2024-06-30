@@ -20,7 +20,7 @@ async def handle_message_openai(room,server,message,match):
         server._model.system = server.system
         #ensure variables
         if not hasattr(server,'history_count'):
-            server.history_count = 15
+            server.history_count = 100
         try: int(server.history_count)
         except: server.history_count = 0
         try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
@@ -404,6 +404,7 @@ async def startup():
         except:pass
 async def main():
     try:
+        logging.basicConfig(level=logging.DEBUG,format='%(asctime)s:%(levelname)s:%(message)s', datefmt="%Y-%m-%d %H:%M:%S")
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
             logger.error(f"Unhandled exception caught: {msg}")
@@ -411,12 +412,15 @@ async def main():
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
-        app = aiohttp.web.Application()
-        app.add_routes([aiohttp.web.get('/status', status_handler)])
-        runner = aiohttp.web.AppRunner(app, access_log=None)
-        await runner.setup()
-        site = aiohttp.web.TCPSite(runner,port=9998)    
-        await site.start()
+        try:
+            app = aiohttp.web.Application()
+            app.add_routes([aiohttp.web.get('/status', status_handler)])
+            runner = aiohttp.web.AppRunner(app, access_log=None)
+            await runner.setup()
+            site = aiohttp.web.TCPSite(runner,port=9998)    
+            await site.start()
+        except BaseException as e:
+            logging.warning('health monitoring failed to start:'+str(e))
         loop.create_task(startup())
         await bot.main()
     except BaseException as e:
