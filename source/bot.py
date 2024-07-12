@@ -25,7 +25,8 @@ async def handle_message_openai(room,server,message,match):
         except: server.history_count = 0
         try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
         except: server.threading = True
-        await bot.api.async_client.set_presence('unavailable','')
+        await bot.api.async_client.set_presence('available','')
+        load_model = asyncio.create_task(server._model.avalible())
         #get History
         events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
         thread_rel = None
@@ -91,6 +92,8 @@ async def handle_message_openai(room,server,message,match):
                     ajson[param] = float(getattr(server,param))
                 except: logging.warning('failed to set parameter:'+param)
         """
+        res = await load_model
+        await bot.api.async_client.set_presence('unavailable','')
         res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
         message_p = await server._model.query(' '.join(words),history,images=images)
         if not thread_rel:
@@ -103,16 +106,21 @@ async def handle_message_openai(room,server,message,match):
                     "formatted_body": markdown.markdown(message_p,
                                                         extensions=['fenced_code', 'nl2br'])
                 }
-            if server.threading:
-                msgc['m.relates_to'] = {
-                        "event_id": thread_rel,
-                        "rel_type": "m.thread",
-                        "is_falling_back": True,
-                        "m.in_reply_to": {
-                            "event_id": message.event_id
-                        }
+        else:
+            msgc = {
+                    "msgtype": "m.text",
+                    "body": server._model.LastError,
+                }
+        if server.threading:
+            msgc['m.relates_to'] = {
+                    "event_id": thread_rel,
+                    "rel_type": "m.thread",
+                    "is_falling_back": True,
+                    "m.in_reply_to": {
+                        "event_id": message.event_id
                     }
-            await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
+                }
+        await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
     except BaseException as e:
         logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
