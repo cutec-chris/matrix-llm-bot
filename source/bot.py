@@ -82,16 +82,14 @@ async def handle_message_openai(room,server,message,match):
         #ask model
         if hasattr(server,'keep_alive'):
             server._model.kwargs['keep_alive'] = server.keep_alive
-        """
         for param in ['seed']:
             if hasattr(server,param):
-                ajson[param] = getattr(server,param)
+                server._model.kwargs[param] = getattr(server,param)
         for param in ['temperature','top_p','max_tokens','frequency_penalty','presence_penalty']:
             if hasattr(server,param):
                 try:
-                    ajson[param] = float(getattr(server,param))
+                    server._model.kwargs[param] = float(getattr(server,param))
                 except: logging.warning('failed to set parameter:'+param)
-        """
         res = await load_model
         await bot.api.async_client.set_presence('unavailable','')
         res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
