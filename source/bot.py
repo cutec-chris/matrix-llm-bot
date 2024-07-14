@@ -17,15 +17,15 @@ async def handle_message_openai(room,server,message,match):
             if hasattr(server,'apikey'):
                 apikey = server.apikey
             server._model = ai.llm.model(server.model,api=server.url,wol=wol,apikey=apikey)
+            #ensure variables
+            if not hasattr(server,'history_count'):
+                server.history_count = 100
+            try: int(server.history_count)
+            except: server.history_count = 0
+            try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
+            except: server.threading = True
         server._model.system = server.system
-        #ensure variables
-        if not hasattr(server,'history_count'):
-            server.history_count = 100
-        try: int(server.history_count)
-        except: server.history_count = 0
-        try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
-        except: server.threading = True
-        await bot.api.async_client.set_presence('available','')
+        await bot.api.async_client.set_presence('online','')
         load_model = asyncio.create_task(server._model.avalible())
         #get History
         events = await get_room_events(bot.api.async_client,room.room_id,int(server.history_count*2))
