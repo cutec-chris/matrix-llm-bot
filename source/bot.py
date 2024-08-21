@@ -105,6 +105,8 @@ async def handle_message_openai(room,server,message,match):
                                                         extensions=['fenced_code', 'nl2br'])
                 }
         else:
+            if not server._model.LastError:
+                server._model.LastError = 'Model seems to be unavalible !'
             msgc = {
                     "msgtype": "m.text",
                     "body": server._model.LastError,
