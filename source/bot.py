@@ -7,6 +7,50 @@ lastsend = None
 class BotData(Config):
     def __init__(self, room, **kwargs) -> None:
         super().__init__(room, **kwargs)
+async def handle_message_webhook(room,server,message,match):
+    try:
+        try: server.threading = server.threading.lower() == 'true' or server.threading == 'on'
+        except: server.threading = True
+        thread_rel = None
+        if 'm.relates_to' in message.source['content'] and server.threading:
+            thread_rel = message.source['content']['m.relates_to']['event_id']
+        else:
+            thread_rel = message.event_id
+        res = await bot.api.async_client.room_typing(room.room_id,True,timeout=300000)
+        async with aiohttp.ClientSession() as session:
+            if message.body.startswith(prefix):
+                message.body = message.body[len(prefix)+1:]
+            async with session.get(server.url,data=message.body,params={'sessionId': thread_rel}) as response:
+                if response.status == 200:
+                    if response.headers['content-type'].startswith('application/json'):
+                        json = await response.json()
+                        content = json['output']
+                    else:
+                        content = await response.text()
+                    msgc = {
+                            "msgtype": "m.text",
+                            "body": content,
+                            "format": "org.matrix.custom.html",
+                            "formatted_body": markdown.markdown(content,
+                                                                extensions=['fenced_code', 'nl2br'])
+                        }
+                    if server.threading:
+                        msgc['m.relates_to'] = {
+                                "event_id": thread_rel,
+                                "rel_type": "m.thread",
+                                "is_falling_back": True,
+                                "m.in_reply_to": {
+                                    "event_id": message.event_id
+                                }
+                            }
+                    await bot.api.async_client.room_send(room.room_id,'m.room.message',msgc)
+                else:
+                    raise Exception(response.reason)
+        res = await bot.api.async_client.room_typing(room.room_id,False)
+    except BaseException as e:
+        logger.error(str(e), exc_info=True)
+        await bot.api.send_text_message(room.room_id,str(e))
+
 async def handle_message_openai(room,server,message,match):
     try:
         if not hasattr(server,'_model'):
@@ -293,6 +337,8 @@ async def tell(room, message):
                 server = set_target
                 server.url = match.args()[2]
                 server.model = match.args()[1]
+            if server.model == 'webhook':
+                server.api = 'webhook'
             servers.append(server)
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
@@ -348,6 +394,9 @@ async def tell(room, message):
                     elif api == 'comfui':
                         loop.create_task(handle_message_comfui(room,server,message,match))
                         break
+                    elif api == 'webhook':
+                        loop.create_task(handle_message_webhook(room,server,message,match))
+                        break
     except BaseException as e:
         logger.error(str(e)+'\n'+str(response_json), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
@@ -391,6 +440,7 @@ async def bot_help(room, message):
                       - frequency_penalty
                       - presence_penalty
                       - keep_alive
+                      - webhook
             help:
                 command: help, ?
                 description: display help command

@@ -40,7 +40,14 @@ Adjust all required settings in the `config.yml` file before running. Optional s
 - You need to have an account at [openai.com](https://openai.com/). Please note that the usage of the ChatGPT-API is not free.
 - Create a [API Key](https://platform.openai.com/account/api-keys). Then, set `OPENAI_API_KEY` in your `.env` file
 - invite the Bot in an new created room
-- 
+
+### Webgooks / n8n
+- invite the Bot in an new created room
+- set the webhook with: add-model webhook url
+
+### comfyui
+- invite the Bot in an new created room
+- use add-comfyui to connect to comfyui
 
 # Run
 
