@@ -20,7 +20,7 @@ async def handle_message_webhook(room,server,message,match):
         async with aiohttp.ClientSession() as session:
             if message.body.startswith(prefix):
                 message.body = message.body[len(prefix)+1:]
-            async with session.get(server.url,data=message.body,params={'sessionId': thread_rel}) as response:
+            async with session.get(server.url,data={'sessionId': thread_rel,'chatInput': message.body}) as response:
                 if response.status == 200:
                     if response.headers['content-type'].startswith('application/json'):
                         json = await response.json()
@@ -50,7 +50,6 @@ async def handle_message_webhook(room,server,message,match):
     except BaseException as e:
         logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
-
 async def handle_message_openai(room,server,message,match):
     try:
         if not hasattr(server,'_model'):
