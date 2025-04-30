@@ -465,6 +465,7 @@ async def startup():
 async def main():
     try:
         logging.basicConfig(level=logging.DEBUG,format='%(asctime)s:%(levelname)s:%(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+        logging.getLogger("nio.responses").setLevel(logging.ERROR)
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
             logger.error(f"Unhandled exception caught: {msg}")
