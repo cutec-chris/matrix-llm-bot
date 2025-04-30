@@ -334,11 +334,14 @@ async def tell(room, message):
                 )
             else:
                 server = set_target
-                server.url = match.args()[2]
-                server.model = match.args()[1]
+                server.url = match.args()[1]
+                server.model = match.args()[0]
             if server.model == 'webhook':
                 server.api = 'webhook'
-            servers.append(server)
+            if not set_target:
+                servers.append(server)
+            else:
+                set_target = server
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
         elif match.command("add-comfui"):
@@ -397,7 +400,7 @@ async def tell(room, message):
                         loop.create_task(handle_message_webhook(room,server,message,match))
                         break
     except BaseException as e:
-        logger.error(str(e)+'\n'+str(response_json), exc_info=True)
+        logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room.room_id,str(e))
 datasources = []
 strategies = []
